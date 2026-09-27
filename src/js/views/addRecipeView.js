@@ -1,5 +1,6 @@
 // import { log10 } from "core-js/core/number";
 import View from "./view.js";
+import icons from 'url:../../img/icons.svg';
 
 class AddRecipeView extends View {
   _parentElement = document.querySelector('.upload');
@@ -8,20 +9,49 @@ class AddRecipeView extends View {
   _overlay = document.querySelector('.overlay');
   _btnOpen = document.querySelector('.nav__btn--add-recipe');
   _btnClose = document.querySelector('.btn--close-modal');
+  _statusElement = document.querySelector('.upload__status');
 
   constructor() {
     super()
       this.addHandlerShowWindow();
       this.addHandlerHideWindow()
-      this.addHandlerUpload()
   }
 
   toggleWindow() {
+    const isClosing = !this._window.classList.contains('hidden');
     this._overlay.classList.toggle('hidden');
     this._window.classList.toggle('hidden');
+    if (isClosing) this.reset();
   }
 
-  uploadRecipe
+  reset() {
+    this._parentElement.reset();
+    this._statusElement.replaceChildren();
+  }
+
+  renderSpinner() {
+    this._statusElement.innerHTML = `
+      <div class="spinner">
+        <svg><use href="${icons}#icon-loader"></use></svg>
+      </div>
+    `;
+  }
+
+  renderError(message) {
+    this._renderFeedback(message, 'error');
+  }
+
+  renderMessage(message = this._message) {
+    this._renderFeedback(message, 'success');
+  }
+
+  _renderFeedback(message, type) {
+    const feedback = document.createElement('p');
+    feedback.className = `upload__feedback upload__feedback--${type}`;
+    feedback.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    feedback.textContent = message;
+    this._statusElement.replaceChildren(feedback);
+  }
   
   addHandlerShowWindow() {
     this._btnOpen.addEventListener('click', this.toggleWindow.bind(this))

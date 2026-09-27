@@ -1,4 +1,19 @@
 services:
+  app:
+    build: .
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-forkity}:${POSTGRES_PASSWORD:-forkity_dev}@db:5432/${POSTGRES_DB:-forkity}
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env}
+      FORKIFY_API_URL: ${FORKIFY_API_URL:-https://forkify-api.jonas.io/api/v2/recipes}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   db:
     image: postgres:17-alpine
     environment:
@@ -14,6 +29,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
 volumes:
   postgres_data:

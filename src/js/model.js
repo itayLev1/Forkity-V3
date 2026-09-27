@@ -96,7 +96,8 @@ const createRecipeObject = function(data) {
         servings: recipe.servings,
         cookingTime: recipe.cooking_time,
         ingredients: recipe.ingredients,
-        ...(recipe.key && {key: recipe.key}) // short circuiting
+        ...(recipe.key && {key: recipe.key}),
+        bookmarked: Boolean(recipe.bookmarked),
       }
     }
     
@@ -106,25 +107,8 @@ const createRecipeObject = function(data) {
     //* load recipe data
     const data = await AJAX(`${API_URL}/${encodeURIComponent(id)}`);
         
-    //* set state with fetched recipe
-    state.recipe = createRecipeObject(data)
-
-    //* save the recipe 
-    const { recipe } = data.data;
-    
-    //* set state with fetched recipe
-    state.recipe = {
-      id: recipe.id,
-      title: recipe.title,
-      publisher: recipe.publisher,
-      sourceUrl: recipe.source_url,
-      image: recipe.image_url,
-      servings: recipe.servings,
-      cookingTime: recipe.cooking_time,
-      ingredients: recipe.ingredients,
-    }
-    if(state.bookmarks.some(bookmark => bookmark.id === id)) state.recipe.bookmarked = true
-    else state.recipe.bookmarked = false
+    state.recipe = createRecipeObject(data);
+    state.recipe.bookmarked = state.bookmarks.some(bookmark => bookmark.id === id);
 
     console.log('recipe in state: ', state.recipe);
 
@@ -202,26 +186,40 @@ export const deleteBookmark = async function(id) {
   if (id === state.recipe.id) state.recipe.bookmarked = false
 }
 
+export const parseRecipeIngredients = (recipeFields) => Object.entries(recipeFields)
+  .filter(([name, value]) => name.startsWith('ingredient') && value.trim())
+  .map(([name, value]) => {
+    const firstComma = value.indexOf(',');
+    const secondComma = value.indexOf(',', firstComma + 1);
+    const ingredientNumber = name.replace('ingredient-', '');
+
+    if (firstComma === -1 || secondComma === -1) {
+      throw new Error(`Ingredient ${ingredientNumber} must use Quantity,Unit,Description format.`);
+    }
+
+    const quantityText = value.slice(0, firstComma).trim();
+    const unit = value.slice(firstComma + 1, secondComma).trim();
+    const description = value.slice(secondComma + 1).trim();
+    const quantity = quantityText ? Number(quantityText) : null;
+
+    if (quantity !== null && (!Number.isFinite(quantity) || quantity < 0)) {
+      throw new Error(`Ingredient ${ingredientNumber} quantity must be a non-negative number.`);
+    }
+    if (!description) {
+      throw new Error(`Ingredient ${ingredientNumber} needs a description.`);
+    }
+
+    return { quantity, unit, description };
+  });
+
 export const uploadRecipe = async function(newRecipe) {
   try {
-  const ingredients = Object.entries(newRecipe)
-  .filter(entry => 
-    entry[0].startsWith('ingredient') && entry[1] !== '')
-    .map(ing => {
-      const ingArr =  ing[1].split(',').map(el => el.trim());
-
-      if(ingArr.length !== 3) throw new Error('Wrong ingredient format, Please use the correct format')
-      
-      const [quantity, unit, description] = ingArr; 
-      
-      return {quantity: quantity ? +quantity : null, unit, description}
-
-    });
+  const ingredients = parseRecipeIngredients(newRecipe);
   
   const recipe = {
     title: newRecipe.title,
-    source_url: newRecipe.sourceUrl,
-    image_url: newRecipe.image,
+    source_url: null,
+    image_url: null,
     publisher: newRecipe.publisher,
     cooking_time: +newRecipe.cookingTime,
     servings: +newRecipe.servings,
@@ -231,8 +229,8 @@ export const uploadRecipe = async function(newRecipe) {
   const data = await AJAX(API_URL, recipe)
 
   state.recipe = createRecipeObject(data);
-
-  await addBookmark(state.recipe);
+  state.recipe.bookmarked = true;
+  state.bookmarks.unshift(state.recipe);
 
 } catch(err) {
   throw err; 

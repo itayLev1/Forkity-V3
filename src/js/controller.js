@@ -243,6 +243,7 @@ const controlSearchResults = async () => {
 
   }catch(err) {
     console.log(`controlSearchResults Error 😎: ${err}`);
+    resultsView.renderError(err.message);
   }
 }
 

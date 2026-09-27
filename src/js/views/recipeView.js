@@ -48,7 +48,9 @@ class RecipeView extends View {
 
     return `
     <figure class="recipe__fig">
-    <img src="${this._data.image}" alt="${this._data.image}" class="recipe__img" />
+    ${this._data.image
+      ? `<img src="${this._data.image}" alt="${this._data.title}" class="recipe__img" />`
+      : `<div class="recipe__img-placeholder" role="img" aria-label="No photo for ${this._data.title}"><svg><use href="${icons}#icon-smile"></use></svg></div>`}
     <h1 class="recipe__title">
       <span>${this._data.title}</span>
     </h1>
@@ -91,10 +93,17 @@ class RecipeView extends View {
       </svg>
     </div>
 
-    <button class="btn--round btn--bookmark">
-      <svg class="">
+    <button
+      class="btn--round btn--bookmark"
+      type="button"
+      aria-label="${this._data.bookmarked ? 'Remove bookmark' : 'Add bookmark'}"
+      aria-pressed="${Boolean(this._data.bookmarked)}"
+      title="${this._data.bookmarked ? 'Remove bookmark' : 'Add bookmark'}"
+    >
+      <svg aria-hidden="true">
         <use href="${icons}#icon-bookmark${this._data.bookmarked ? '-fill' : ''}"></use>
       </svg>
+      <span>${this._data.bookmarked ? 'Bookmarked' : 'Bookmark'}</span>
     </button>
   </div>
 
@@ -104,7 +113,7 @@ class RecipeView extends View {
       ${this._data.ingredients.map(this._generateMarkupIngredient).join('')}
   </div>
 
-  <div class="recipe__directions">
+  ${this._data.sourceUrl ? `<div class="recipe__directions">
     <h2 class="heading--2">How to cook it</h2>
     <p class="recipe__directions-text">
       This ${this._data.title} recipe was carefully designed and tested by
@@ -121,7 +130,7 @@ class RecipeView extends View {
         <use href="${icons}#icon-arrow-right"></use>
       </svg>
     </a>
-  </div>
+  </div>` : ''}
   `
 
   }

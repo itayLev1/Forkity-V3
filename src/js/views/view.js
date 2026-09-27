@@ -48,6 +48,7 @@ export default class View {
     //^ looping through elements in both arrays and comparing the element's nodes
     newElements.forEach((NewEl, i) => {
       const curEl = curElements[i]
+      if (!curEl) return;
       // console.log(curEl, NewEl.isEqualNode(curEl));
 
       // the method isEqualNode compares two nodes with each other. it returns the node's element and false if a change has been made and true if not.
@@ -57,7 +58,8 @@ export default class View {
       //^ check if nodes are not equal (changes made) and grabs the node itself to check if it contains text. then modify thr text to update to the new value
       if (
         !NewEl.isEqualNode(curEl) &&
-        NewEl.firstChild?.nodeValue.trim() !== ''
+        NewEl.firstChild?.nodeType === Node.TEXT_NODE &&
+        NewEl.firstChild.nodeValue.trim() !== ''
       ) {
         // console.log('🍟', NewEl.firstChild.nodeValue.trim());
         curEl.textContent = NewEl.textContent
@@ -85,7 +87,7 @@ export default class View {
     </svg>
   </div>
     `
-    this._clear;
+    this._clear();
     this._parentElement.insertAdjacentHTML('afterbegin', markup);
 
   }
@@ -94,17 +96,18 @@ export default class View {
 
     const markup = `
       <div class="error">
-              <div>
-                <svg>
-                  <use href="${icons}#icon-alert-triangle"></use>
-                </svg>
-              </div>
-              <p>${message}</p>
-            </div>
-            `
+        <div>
+          <svg>
+            <use href="${icons}#icon-alert-triangle"></use>
+          </svg>
+        </div>
+        <p></p>
+      </div>
+    `;
 
-    this._clear;
+    this._clear();
     this._parentElement.insertAdjacentHTML('afterbegin', markup);
+    this._parentElement.querySelector('.error p').textContent = message;
 
   }
 
@@ -121,7 +124,7 @@ export default class View {
             </div>
             `
 
-    this._clear;
+    this._clear();
     this._parentElement.insertAdjacentHTML('afterbegin', markup);
 
   }

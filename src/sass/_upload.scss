@@ -217,3 +217,20 @@
     justify-self: center;
   }
 }
+
+.upload__status:not(:empty) {
+  margin-bottom: 2rem;
+}
+
+.upload__feedback {
+  font-size: 1.5rem;
+  text-align: center;
+}
+
+.upload__feedback--error {
+  color: #a52a2a;
+}
+
+.upload__feedback--success {
+  color: $color-primary;
+}

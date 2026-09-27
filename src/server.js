@@ -4,12 +4,13 @@ import session from 'express-session';
 import pg from 'pg';
 import connectPgSimple from 'connect-pg-simple';
 import bcrypt from 'bcryptjs';
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 
 const { Pool } = pg;
 const port = Number(process.env.PORT || 3000);
 const sessionSecret = process.env.SESSION_SECRET;
 const recipeApiUrl = process.env.FORKIFY_API_URL;
-const recipeApiKey = process.env.FORKIFY_API_KEY;
 const recipeApiTimeout = 10_000;
 
 if (!process.env.DATABASE_URL) {
@@ -22,6 +23,7 @@ if (!sessionSecret || Buffer.byteLength(sessionSecret) < 32) {
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const app = express();
+const frontendDirectory = path.resolve('dist');
 const PgSession = connectPgSimple(session);
 const cookieName = 'forkity.sid';
 const cookieOptions = {
@@ -89,8 +91,9 @@ const requireAuthentication = (request, response, next) => {
 const normalizeBookmarkRecipe = (recipe) => {
   if (!recipe || typeof recipe !== 'object' || Array.isArray(recipe)) return null;
 
-  const textFields = ['id', 'title', 'publisher', 'sourceUrl', 'image'];
+  const textFields = ['id', 'title', 'publisher'];
   if (textFields.some((field) => typeof recipe[field] !== 'string' || !recipe[field].trim())) return null;
+  if (['sourceUrl', 'image'].some((field) => recipe[field] != null && typeof recipe[field] !== 'string')) return null;
   if (recipe.id.length > 128 || recipe.title.length > 300 || recipe.publisher.length > 200) return null;
   if (!Number.isFinite(recipe.servings) || recipe.servings < 1 || recipe.servings > 1000) return null;
   if (!Number.isFinite(recipe.cookingTime) || recipe.cookingTime < 1 || recipe.cookingTime > 10000) return null;
@@ -98,6 +101,7 @@ const normalizeBookmarkRecipe = (recipe) => {
 
   try {
     for (const field of ['sourceUrl', 'image']) {
+      if (!recipe[field]) continue;
       const url = new URL(recipe[field]);
       if (!['http:', 'https:'].includes(url.protocol)) return null;
     }
@@ -126,8 +130,8 @@ const normalizeBookmarkRecipe = (recipe) => {
     id: recipe.id,
     title: recipe.title,
     publisher: recipe.publisher,
-    sourceUrl: recipe.sourceUrl,
-    image: recipe.image,
+    sourceUrl: recipe.sourceUrl || null,
+    image: recipe.image || null,
     servings: recipe.servings,
     cookingTime: recipe.cookingTime,
     ingredients,
@@ -272,7 +276,7 @@ app.post('/api/v1/auth/logout', (request, response, next) => {
 });
 
 const proxyRecipeRequest = async (request, response) => {
-  if (!recipeApiUrl || !recipeApiKey) {
+  if (!recipeApiUrl) {
     return response.status(503).json({ message: 'Recipe service is not configured.' });
   }
 
@@ -281,13 +285,11 @@ const proxyRecipeRequest = async (request, response) => {
     upstreamUrl.pathname = `${upstreamUrl.pathname.replace(/\/$/, '')}/${encodeURIComponent(request.params.id)}`;
   }
   if (request.query.search) upstreamUrl.searchParams.set('search', request.query.search);
-  upstreamUrl.searchParams.set('key', recipeApiKey);
+  upstreamUrl.searchParams.delete('key');
 
   try {
     const upstreamResponse = await fetch(upstreamUrl, {
-      method: request.method,
-      headers: request.method === 'POST' ? { 'Content-Type': 'application/json' } : undefined,
-      body: request.method === 'POST' ? JSON.stringify(request.body) : undefined,
+      method: 'GET',
       signal: AbortSignal.timeout(recipeApiTimeout),
     });
     const data = await upstreamResponse.json();
@@ -318,14 +320,76 @@ app.get('/api/v1/recipes/:id', (request, response) => {
   if (!request.params.id || request.params.id.length > 128) {
     return response.status(400).json({ message: 'A valid recipe ID is required.' });
   }
+  if (request.params.id.startsWith('local-')) {
+    if (!Number.isInteger(request.session.userId)) {
+      return response.status(401).json({ message: 'Log in to access your recipe.' });
+    }
+
+    pool.query(
+      'SELECT recipe_data FROM user_recipes WHERE recipe_id = $1 AND user_id = $2',
+      [request.params.id, request.session.userId],
+    ).then(({ rows }) => {
+      if (!rows[0]) return response.status(404).json({ message: 'Recipe not found.' });
+      response.json({ data: { recipe: rows[0].recipe_data } });
+    }).catch((error) => {
+      console.error('Unable to load local recipe:', error);
+      response.status(500).json({ message: 'The recipe could not be loaded.' });
+    });
+    return;
+  }
   proxyRecipeRequest(request, response);
 });
 
-app.post('/api/v1/recipes', (request, response) => {
-  if (!request.body || typeof request.body !== 'object' || Array.isArray(request.body)) {
-    return response.status(400).json({ message: 'A recipe object is required.' });
+app.post('/api/v1/recipes', requireAuthentication, async (request, response, next) => {
+  const id = `local-${randomUUID()}`;
+  const recipe = normalizeBookmarkRecipe({
+    id,
+    title: request.body?.title,
+    publisher: request.body?.publisher,
+    sourceUrl: request.body?.source_url,
+    image: request.body?.image_url,
+    servings: request.body?.servings,
+    cookingTime: request.body?.cooking_time,
+    ingredients: request.body?.ingredients,
+    key: 'user',
+  });
+
+  if (!recipe) {
+    return response.status(400).json({ message: 'A valid recipe is required.' });
   }
-  proxyRecipeRequest(request, response);
+
+  const recipeData = {
+    id: recipe.id,
+    title: recipe.title,
+    publisher: recipe.publisher,
+    source_url: recipe.sourceUrl,
+    image_url: recipe.image,
+    servings: recipe.servings,
+    cooking_time: recipe.cookingTime,
+    ingredients: recipe.ingredients,
+    key: 'user',
+    bookmarked: true,
+  };
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'INSERT INTO user_recipes (recipe_id, user_id, recipe_data) VALUES ($1, $2, $3)',
+      [id, request.session.userId, recipeData],
+    );
+    await client.query(
+      'INSERT INTO bookmarks (user_id, recipe_id, recipe_data) VALUES ($1, $2, $3)',
+      [request.session.userId, id, recipe],
+    );
+    await client.query('COMMIT');
+    response.status(201).json({ data: { recipe: recipeData } });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
+  }
 });
 
 app.get('/api/v1/health', async (_request, response) => {
@@ -335,6 +399,13 @@ app.get('/api/v1/health', async (_request, response) => {
   } catch {
     response.status(503).json({ status: 'error', database: 'unavailable' });
   }
+});
+
+app.use(express.static(frontendDirectory));
+app.get(/^\/(?!api\/).*/, (_request, response, next) => {
+  response.sendFile(path.join(frontendDirectory, 'index.html'), (error) => {
+    if (error) next(error);
+  });
 });
 
 app.use((error, _request, response, _next) => {
