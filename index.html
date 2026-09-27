@@ -80,6 +80,14 @@
                 </ul>
               </div>
             </li>
+            <li class="nav__item">
+              <button class="nav__btn nav__btn--account" type="button" aria-haspopup="dialog" aria-expanded="false">
+                <svg class="nav__icon">
+                  <use href="src/img/icons.svg#icon-user"></use>
+                </svg>
+                <span class="nav__account-label">Log in</span>
+              </button>
+            </li>
           </ul>
         </nav>
       </header>
@@ -330,5 +338,32 @@
         </button>
       </form>
     </div>
+
+    <div class="auth-overlay hidden"></div>
+    <section class="auth-window hidden" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <button class="auth__close" type="button" aria-label="Close account dialog">&times;</button>
+      <h2 class="auth__title" id="auth-title">Log in</h2>
+      <div class="auth__tabs" role="group" aria-label="Account action">
+        <button type="button" data-auth-mode="login" aria-pressed="true">Log in</button>
+        <button type="button" data-auth-mode="register" aria-pressed="false">Create account</button>
+      </div>
+      <form class="auth__form">
+        <input class="auth__mode" type="hidden" value="login" />
+        <label for="auth-email">Email</label>
+        <input class="auth__email-input" id="auth-email" name="email" type="email" autocomplete="email" maxlength="254" required />
+        <label for="auth-password">Password</label>
+        <input class="auth__password-input" id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="72" required />
+        <p class="auth__error hidden" role="alert"></p>
+        <button class="btn auth__submit" type="submit">
+          <span class="auth__submit-label">Log in</span>
+        </button>
+      </form>
+      <div class="auth__signed-in hidden">
+        <p>Signed in as</p>
+        <p class="auth__account-email"></p>
+        <p class="auth__error hidden" role="alert"></p>
+        <button class="btn auth__logout" type="button">Log out</button>
+      </div>
+    </section>
   </body>
 </html>

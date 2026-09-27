@@ -14,9 +14,12 @@
     "db:rollback": "node-pg-migrate -m migrations down"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "connect-pg-simple": "^10.0.0",
     "core-js": "^3.41.0",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
+    "express-session": "^1.19.0",
     "node-pg-migrate": "^8.0.3",
     "pg": "^8.16.3",
     "regenerator-runtime": "^0.14.1"

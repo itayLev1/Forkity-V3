@@ -101,6 +101,13 @@
     &:hover {
       background-color: $color-grey-light-2;
     }
+
+    &--account span {
+      max-width: 16rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 }
 

@@ -11,8 +11,10 @@ The project uses Parcel for the existing frontend, Express for the API, and Post
 3. Start PostgreSQL with `npm run db:up`.
 4. Apply database migrations with `npm run db:migrate`.
 5. Start the API with `npm run dev:api`.
-6. In another terminal, start the frontend with `npm run dev`.
+6. In another terminal, start the frontend with `npm run dev`. Parcel proxies `/api` requests to the local API.
 
 The API health check is available at `http://localhost:3000/api/v1/health`. Local database credentials in `.env.example` are for development only; use managed secrets and strong credentials outside local development.
 
 The initial migration creates `users` and `bookmarks`. Bookmark rows belong to a user, store a recipe snapshot for listing saved items, and are unique per user and recipe. Use `npm run db:rollback` to undo the most recently applied migration.
+
+The API provides `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, and `GET /api/v1/auth/me`. Authentication uses an HTTP-only session cookie stored in PostgreSQL. In production, serve the frontend and proxy `/api` to the API on the same origin, set `NODE_ENV=production`, and provide a unique `SESSION_SECRET` of at least 32 characters.

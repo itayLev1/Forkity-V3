@@ -3,7 +3,7 @@
 //~ By using export on the state variable it will automatically update the variable on the import side which is the controller in this case. 
 
 import { async } from 'regenerator-runtime';
-import { API_URL, RESULTS_PER_PAGE, KEY, } from './config.js';
+import { API_URL, AUTH_API_URL, RESULTS_PER_PAGE, KEY, } from './config.js';
 // import { getJSON, sendJSON } from './helpers.js';
 import { AJAX } from './helpers.js'
 // import { search } from 'core-js/fn/symbol';
@@ -12,6 +12,7 @@ import { AJAX } from './helpers.js'
 
 //* initialize state
 export const state = {
+  user: null,
   recipe: {},
   search: {
     query: '',
@@ -20,6 +21,42 @@ export const state = {
     resultsPerPage: RESULTS_PER_PAGE,
   },
   bookmarks: [],
+};
+
+const authRequest = async (endpoint, payload) => {
+  const response = await fetch(`${AUTH_API_URL}/${endpoint}`, {
+    method: payload === undefined ? 'GET' : 'POST',
+    credentials: 'same-origin',
+    headers: payload === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: payload === undefined ? undefined : JSON.stringify(payload),
+  });
+
+  const data = response.status === 204 ? null : await response.json();
+  if (!response.ok) throw new Error(data?.message || 'Unable to complete the account request.');
+  return data;
+};
+
+export const loadCurrentUser = async () => {
+  const { user } = await authRequest('me');
+  state.user = user;
+  return user;
+};
+
+export const registerUser = async (credentials) => {
+  const { user } = await authRequest('register', credentials);
+  state.user = user;
+  return user;
+};
+
+export const loginUser = async (credentials) => {
+  const { user } = await authRequest('login', credentials);
+  state.user = user;
+  return user;
+};
+
+export const logoutUser = async () => {
+  await authRequest('logout', {});
+  state.user = null;
 };
 
 const createRecipeObject = function(data) {

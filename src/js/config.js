@@ -5,6 +5,8 @@
 
 export const API_URL = `https://forkify-api.herokuapp.com/api/v2/recipes/`;
 
+export const AUTH_API_URL = '/api/v1/auth';
+
 export const TIMEOUT_SEC = 10;
 
 export const RESULTS_PER_PAGE = 10;

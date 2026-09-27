@@ -37,6 +37,126 @@
   transition: all 0.5s;
 }
 
+.auth-overlay {
+  @extend .overlay;
+}
+
+.auth-window {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(44rem, calc(100vw - 3rem));
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+  padding: 4rem;
+  background: #fff;
+  border-radius: 0.8rem;
+  box-shadow: 0 4rem 6rem rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+
+  .auth__close {
+    position: absolute;
+    top: 0.7rem;
+    right: 1.5rem;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 3rem;
+    cursor: pointer;
+  }
+}
+
+.auth__title {
+  margin-bottom: 2rem;
+  color: $color-grey-dark-1;
+  font-size: 2.4rem;
+  text-align: center;
+}
+
+.auth__tabs {
+  display: flex;
+  margin-bottom: 2.5rem;
+  border-bottom: 1px solid $color-grey-light-2;
+
+  button {
+    flex: 1;
+    padding: 1rem 0.5rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: $color-grey-dark-2;
+    font: inherit;
+    font-size: 1.4rem;
+    font-weight: 700;
+    cursor: pointer;
+
+    &[aria-pressed='true'] {
+      border-bottom-color: $color-primary;
+      color: $color-primary;
+    }
+  }
+}
+
+.auth__tabs.hidden,
+.auth__form.hidden,
+.auth__signed-in.hidden {
+  display: none;
+}
+
+.auth__form {
+  display: grid;
+  gap: 1rem;
+
+  label {
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  input:not([type='hidden']) {
+    width: 100%;
+    margin-bottom: 1rem;
+    padding: 1rem 1.2rem;
+    border: 1px solid $color-grey-light-3;
+    border-radius: 0.4rem;
+    font: inherit;
+    font-size: 1.5rem;
+
+    &:focus {
+      outline: 2px solid $color-primary;
+      outline-offset: 1px;
+    }
+  }
+}
+
+.auth__submit,
+.auth__logout {
+  justify-self: center;
+  margin-top: 1rem;
+}
+
+.auth__signed-in {
+  display: grid;
+  gap: 1rem;
+  text-align: center;
+
+  p {
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+}
+
+.auth__account-email {
+  overflow-wrap: anywhere;
+  font-size: 1.7rem !important;
+}
+
+.auth__error {
+  color: #a52a2a;
+  font-size: 1.4rem;
+}
+
 .hidden {
   visibility: hidden;
   opacity: 0;

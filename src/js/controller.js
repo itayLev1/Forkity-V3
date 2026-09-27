@@ -188,6 +188,7 @@ import resultsView from './views/resultsView.js';
 import paginationView from './views/paginationView.js';
 import bookmarksView from './views/bookmarksView.js';
 import addRecipeView from './views/addRecipeView.js';
+import authView from './views/authView.js';
 
 import 'core-js/stable';
 import 'regenerator-runtime/runtime';
@@ -316,6 +317,30 @@ const controlAddRecipe = async function(newRecipe) {
   }
 }
 
+const controlAuthSubmit = async function({ email, password, mode }) {
+  const credentials = { email, password };
+  const user = mode === 'register'
+    ? await model.registerUser(credentials)
+    : await model.loginUser(credentials);
+
+  authView.render(user);
+}
+
+const controlAuthLogout = async function() {
+  await model.logoutUser();
+  authView.render(null);
+  authView.close();
+}
+
+const controlCurrentUser = async function() {
+  try {
+    await model.loadCurrentUser();
+    authView.render(model.state.user);
+  } catch (err) {
+    console.error(`Unable to restore account session: ${err.message}`);
+  }
+}
+
 const init = function() {
   bookmarksView.addHandlerRender(controlBookmarks)
   recipeView.addHandlerRender(controlRecipes);
@@ -324,6 +349,9 @@ const init = function() {
   searchView.addHandlerSearch(controlSearchResults);
   paginationView.addHandlerClick(controlPagination);
   addRecipeView.addHandlerUpload(controlAddRecipe);
+  authView.addHandlerSubmit(controlAuthSubmit);
+  authView.addHandlerLogout(controlAuthLogout);
   console.log('Welcome!');
 }
 init();
+controlCurrentUser();
