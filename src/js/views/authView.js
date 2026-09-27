@@ -84,6 +84,19 @@ class AuthView {
     if (!this._user) this._emailInput.focus();
   }
 
+  openLogin() {
+    if (!this._user && this._modeInput.value !== 'login') {
+      this._modeInput.value = 'login';
+      this._title.textContent = 'Log in';
+      this._submitLabel.textContent = 'Log in';
+      this._passwordInput.autocomplete = 'current-password';
+      this._tabs.querySelectorAll('[data-auth-mode]').forEach((tab) => {
+        tab.setAttribute('aria-pressed', String(tab.dataset.authMode === 'login'));
+      });
+    }
+    this.open();
+  }
+
   close() {
     this._navButton.setAttribute('aria-expanded', 'false');
     this._overlay.classList.add('hidden');

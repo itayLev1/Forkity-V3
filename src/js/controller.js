@@ -190,6 +190,7 @@ import authView from './views/authView.js';
 import 'core-js/stable';
 import 'regenerator-runtime/runtime';
 
+let accountReady = Promise.resolve();
 
 // if (module.hot) {
 //   module.hot.accept();
@@ -197,6 +198,7 @@ import 'regenerator-runtime/runtime';
 
 const controlRecipes = async function () {
   try {
+    await accountReady;
 
     const id = window.location.hash.slice(1);
 
@@ -207,9 +209,6 @@ const controlRecipes = async function () {
     //* update results view to update selected search result
     resultsView.update(model.getSearchResultsPage())
 
-    //* update bookmarks view from localhost
-    bookmarksView.update(model.state.bookmarks)
-    
     //* Load recipe.
     await model.loadRecipe(id);
 
@@ -264,25 +263,37 @@ const controlServings = function(newServings = model.state.recipe.servings) {
   recipeView.update(model.state.recipe);
 }
 
-const controlAddBookmark = function() {
-  // adds or removes bookmark at the current recipe (boolean)
-if(!model.state.recipe.bookmarked) 
-  model.addBookmark(model.state.recipe)
-else model.deleteBookmark(model.state.recipe.id)
+const controlAddBookmark = async function() {
+  if (!model.state.user) {
+    authView.openLogin();
+    return;
+  }
 
-console.log(model.state.recipe);
-  // updates recipeView with new bookmark data
-  recipeView.update(model.state.recipe)
+  try {
+    if (!model.state.recipe.bookmarked) await model.addBookmark(model.state.recipe);
+    else await model.deleteBookmark(model.state.recipe.id);
 
-  // render the bookmarks
-  bookmarksView.render(model.state.bookmarks)
+    recipeView.update(model.state.recipe);
+    bookmarksView.render(model.state.bookmarks);
+  } catch (err) {
+    window.alert(err.message);
+  }
 }
 
 const controlBookmarks = function() {
+  if (!model.state.user) {
+    bookmarksView.renderEmpty('Log in to save bookmarks to your account.');
+    return;
+  }
   bookmarksView.render(model.state.bookmarks)
 }
 
 const controlAddRecipe = async function(newRecipe) {
+  if (!model.state.user) {
+    authView.openLogin();
+    return;
+  }
+
   try {
   // Show loading spinner
   addRecipeView.renderSpinner()
@@ -320,19 +331,27 @@ const controlAuthSubmit = async function({ email, password, mode }) {
     ? await model.registerUser(credentials)
     : await model.loginUser(credentials);
 
+  await model.loadBookmarks();
+  bookmarksView.render(model.state.bookmarks);
+  if (model.state.recipe.id) recipeView.update(model.state.recipe);
   authView.render(user);
 }
 
 const controlAuthLogout = async function() {
   await model.logoutUser();
   authView.render(null);
+  bookmarksView.renderEmpty('Log in to save bookmarks to your account.');
+  if (model.state.recipe.id) recipeView.update(model.state.recipe);
   authView.close();
 }
 
 const controlCurrentUser = async function() {
   try {
-    await model.loadCurrentUser();
-    authView.render(model.state.user);
+    const user = await model.loadCurrentUser();
+    if (user) await model.loadBookmarks();
+    authView.render(user);
+    if (user) bookmarksView.render(model.state.bookmarks);
+    else bookmarksView.renderEmpty('Log in to save bookmarks to your account.');
   } catch (err) {
     console.error(`Unable to restore account session: ${err.message}`);
   }
@@ -351,4 +370,4 @@ const init = function() {
   console.log('Welcome!');
 }
 init();
-controlCurrentUser();
+accountReady = controlCurrentUser();

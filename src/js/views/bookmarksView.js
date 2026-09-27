@@ -13,6 +13,21 @@ class BookmarksView extends View {
     window.addEventListener('load', handler);
   }
 
+  renderEmpty(message) {
+    const item = document.createElement('li');
+    item.className = 'message';
+    item.textContent = message;
+    this._parentElement.replaceChildren(item);
+  }
+
+  render(data) {
+    if (!data?.length) {
+      this.renderEmpty('No bookmarks saved yet.');
+      return;
+    }
+    super.render(data);
+  }
+
   _generateMarkup() {
 
     return this._data.map(bookmark => previewView.render(bookmark, false)).join('');

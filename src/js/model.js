@@ -36,6 +36,19 @@ const authRequest = async (endpoint, payload) => {
   return data;
 };
 
+const bookmarkRequest = async (path, method = 'GET', payload) => {
+  const response = await fetch(`/api/v1/bookmarks${path}`, {
+    method,
+    credentials: 'same-origin',
+    headers: payload === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: payload === undefined ? undefined : JSON.stringify(payload),
+  });
+
+  const data = response.status === 204 ? null : await response.json();
+  if (!response.ok) throw new Error(data?.message || 'Unable to update bookmarks.');
+  return data;
+};
+
 export const loadCurrentUser = async () => {
   const { user } = await authRequest('me');
   state.user = user;
@@ -57,6 +70,17 @@ export const loginUser = async (credentials) => {
 export const logoutUser = async () => {
   await authRequest('logout', {});
   state.user = null;
+  state.bookmarks = [];
+  if (state.recipe.id) state.recipe.bookmarked = false;
+};
+
+export const loadBookmarks = async () => {
+  const { bookmarks } = await bookmarkRequest('');
+  state.bookmarks = bookmarks;
+  if (state.recipe.id) {
+    state.recipe.bookmarked = bookmarks.some((bookmark) => bookmark.id === state.recipe.id);
+  }
+  return bookmarks;
 };
 
 const createRecipeObject = function(data) {
@@ -159,51 +183,24 @@ export const updateServings = function (newServings) {
   state.recipe.servings = newServings
 }
 
-const persistBookmarks = function() {
-  localStorage.setItem('bookmarks', JSON.stringify(state.bookmarks))
-  console.log('state.bookmarks: ', state.bookmarks);
-}
-
 //* add bookmark
-export const addBookmark = function(recipe) {
-  // add bookmark
-  state.bookmarks.push(recipe)
+export const addBookmark = async function(recipe) {
+  const { bookmark } = await bookmarkRequest('', 'POST', { recipe });
+  const index = state.bookmarks.findIndex((saved) => saved.id === bookmark.id);
+  if (index === -1) state.bookmarks.push(bookmark);
+  else state.bookmarks[index] = bookmark;
 
-  // mark current recipe as bookmarked
-  if (recipe.id === state.recipe.id) state.recipe.bookmarked = true
-  
-  console.log('added bookmark');
-  // save bookmarks array to local storage (as a string). to update the persisting bookmarks (on local storage)
-  persistBookmarks();
+  if (recipe.id === state.recipe.id) state.recipe.bookmarked = true;
 }
 
 //* remove bookmark
-export const deleteBookmark = function(id) {
-  // delete bookmark
+export const deleteBookmark = async function(id) {
+  await bookmarkRequest(`/${encodeURIComponent(id)}`, 'DELETE');
   const index = state.bookmarks.findIndex(el => el.id === id)
-  state.bookmarks.splice(index, 1)
+  if (index !== -1) state.bookmarks.splice(index, 1)
 
-    // mark current recipe as NOT bookmarked
-    if (id === state.recipe.id) state.recipe.bookmarked = false
-
-    console.log('deleted bookmark');
-
-    // save bookmarks array to local storage (as a string). to update the persisting bookmarks (on local storage)
-    persistBookmarks();
+  if (id === state.recipe.id) state.recipe.bookmarked = false
 }
-
-const init = function() {
-  const storage = localStorage.getItem('bookmarks');
-  if (storage) state.bookmarks = JSON.parse(storage);
-  // console.log(storage.parse());
-};
-init();
-
-// FOR TESTING & DEBUGGING
-const clearBookmarks = function() {
-  localStorage.clear('bookmarks');
-}
-// clearBookmarks()
 
 export const uploadRecipe = async function(newRecipe) {
   try {
@@ -235,7 +232,7 @@ export const uploadRecipe = async function(newRecipe) {
 
   state.recipe = createRecipeObject(data);
 
-  addBookmark(state.recipe);
+  await addBookmark(state.recipe);
 
 } catch(err) {
   throw err; 

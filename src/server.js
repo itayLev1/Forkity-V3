@@ -34,7 +34,7 @@ const cookieOptions = {
 app.disable('x-powered-by');
 if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1);
 
-app.use(express.json({ limit: '10kb' }));
+app.use(express.json({ limit: '64kb' }));
 app.use(session({
   name: cookieName,
   store: new PgSession({
@@ -78,6 +78,113 @@ const establishSession = (request, userId) => new Promise((resolve, reject) => {
 });
 
 const publicUser = (row) => ({ id: row.id, email: row.email });
+
+const requireAuthentication = (request, response, next) => {
+  if (!Number.isInteger(request.session.userId)) {
+    return response.status(401).json({ message: 'Log in to access your bookmarks.' });
+  }
+  next();
+};
+
+const normalizeBookmarkRecipe = (recipe) => {
+  if (!recipe || typeof recipe !== 'object' || Array.isArray(recipe)) return null;
+
+  const textFields = ['id', 'title', 'publisher', 'sourceUrl', 'image'];
+  if (textFields.some((field) => typeof recipe[field] !== 'string' || !recipe[field].trim())) return null;
+  if (recipe.id.length > 128 || recipe.title.length > 300 || recipe.publisher.length > 200) return null;
+  if (!Number.isFinite(recipe.servings) || recipe.servings < 1 || recipe.servings > 1000) return null;
+  if (!Number.isFinite(recipe.cookingTime) || recipe.cookingTime < 1 || recipe.cookingTime > 10000) return null;
+  if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length > 100) return null;
+
+  try {
+    for (const field of ['sourceUrl', 'image']) {
+      const url = new URL(recipe[field]);
+      if (!['http:', 'https:'].includes(url.protocol)) return null;
+    }
+  } catch {
+    return null;
+  }
+
+  const ingredients = recipe.ingredients.map((ingredient) => {
+    if (!ingredient || typeof ingredient !== 'object') return null;
+    if (
+      (ingredient.quantity !== null && !Number.isFinite(ingredient.quantity)) ||
+      typeof ingredient.unit !== 'string' || ingredient.unit.length > 80 ||
+      typeof ingredient.description !== 'string' || ingredient.description.length > 300
+    ) return null;
+
+    return {
+      quantity: ingredient.quantity,
+      unit: ingredient.unit,
+      description: ingredient.description,
+    };
+  });
+
+  if (ingredients.includes(null)) return null;
+
+  return {
+    id: recipe.id,
+    title: recipe.title,
+    publisher: recipe.publisher,
+    sourceUrl: recipe.sourceUrl,
+    image: recipe.image,
+    servings: recipe.servings,
+    cookingTime: recipe.cookingTime,
+    ingredients,
+    ...(recipe.key ? { key: 'user' } : {}),
+    bookmarked: true,
+  };
+};
+
+app.get('/api/v1/bookmarks', requireAuthentication, async (request, response, next) => {
+  try {
+    const result = await pool.query(
+      'SELECT recipe_data FROM bookmarks WHERE user_id = $1 ORDER BY created_at DESC',
+      [request.session.userId],
+    );
+    response.json({ bookmarks: result.rows.map(({ recipe_data: recipe }) => ({ ...recipe, bookmarked: true })) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/v1/bookmarks', requireAuthentication, async (request, response, next) => {
+  const recipe = normalizeBookmarkRecipe(request.body?.recipe);
+  if (!recipe) {
+    return response.status(400).json({ message: 'A valid recipe is required to create a bookmark.' });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO bookmarks (user_id, recipe_id, recipe_data)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, recipe_id) DO UPDATE SET recipe_data = EXCLUDED.recipe_data
+       RETURNING recipe_data`,
+      [request.session.userId, recipe.id, recipe],
+    );
+    response.status(200).json({ bookmark: result.rows[0].recipe_data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/v1/bookmarks/:recipeId', requireAuthentication, async (request, response, next) => {
+  const { recipeId } = request.params;
+  if (!recipeId || recipeId.length > 128) {
+    return response.status(400).json({ message: 'A valid recipe ID is required.' });
+  }
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM bookmarks WHERE user_id = $1 AND recipe_id = $2 RETURNING recipe_id',
+      [request.session.userId, recipeId],
+    );
+    if (!result.rowCount) return response.status(404).json({ message: 'Bookmark not found.' });
+    response.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.post('/api/v1/auth/register', async (request, response, next) => {
   const credentials = validateCredentials(request.body);
