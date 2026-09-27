@@ -18,3 +18,5 @@ The API health check is available at `http://localhost:3000/api/v1/health`. Loca
 The initial migration creates `users` and `bookmarks`. Bookmark rows belong to a user, store a recipe snapshot for listing saved items, and are unique per user and recipe. Use `npm run db:rollback` to undo the most recently applied migration.
 
 The API provides `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, and `GET /api/v1/auth/me`. Authentication uses an HTTP-only session cookie stored in PostgreSQL. In production, serve the frontend and proxy `/api` to the API on the same origin, set `NODE_ENV=production`, and provide a unique `SESSION_SECRET` of at least 32 characters.
+
+Recipe search, recipe details, and recipe uploads go through `GET /api/v1/recipes?search=...`, `GET /api/v1/recipes/:id`, and `POST /api/v1/recipes`. Configure `FORKIFY_API_URL` and `FORKIFY_API_KEY` on the server; neither value is required by or included in the browser bundle. The previous recipe key was embedded in client code, so treat it as exposed and use a newly issued key.

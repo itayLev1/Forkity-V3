@@ -3,7 +3,7 @@
 //~ By using export on the state variable it will automatically update the variable on the import side which is the controller in this case. 
 
 import { async } from 'regenerator-runtime';
-import { API_URL, AUTH_API_URL, RESULTS_PER_PAGE, KEY, } from './config.js';
+import { API_URL, AUTH_API_URL, RESULTS_PER_PAGE } from './config.js';
 // import { getJSON, sendJSON } from './helpers.js';
 import { AJAX } from './helpers.js'
 // import { search } from 'core-js/fn/symbol';
@@ -80,7 +80,7 @@ const createRecipeObject = function(data) {
       try {
         
     //* load recipe data
-    const data = await AJAX(`${API_URL}/${id}?key=${KEY}`);
+    const data = await AJAX(`${API_URL}/${encodeURIComponent(id)}`);
         
     //* set state with fetched recipe
     state.recipe = createRecipeObject(data)
@@ -116,7 +116,7 @@ export const loadSearchResults = async (query) => {
 
     state.search.query = query;
 
-    const data = await AJAX(`${API_URL}?search=${query}&key=${KEY}`);
+    const data = await AJAX(`${API_URL}?search=${encodeURIComponent(query)}`);
 
     state.search.results = data.data.recipes.map(rec => {
       return {
@@ -231,7 +231,7 @@ export const uploadRecipe = async function(newRecipe) {
     ingredients,
   }
   
-  const data = await AJAX(`${API_URL}?key=${KEY}`, recipe)
+  const data = await AJAX(API_URL, recipe)
 
   state.recipe = createRecipeObject(data);
 

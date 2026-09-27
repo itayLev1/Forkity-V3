@@ -8,6 +8,9 @@ import bcrypt from 'bcryptjs';
 const { Pool } = pg;
 const port = Number(process.env.PORT || 3000);
 const sessionSecret = process.env.SESSION_SECRET;
+const recipeApiUrl = process.env.FORKIFY_API_URL;
+const recipeApiKey = process.env.FORKIFY_API_KEY;
+const recipeApiTimeout = 10_000;
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL must be set');
@@ -159,6 +162,63 @@ app.post('/api/v1/auth/logout', (request, response, next) => {
     });
     response.status(204).end();
   });
+});
+
+const proxyRecipeRequest = async (request, response) => {
+  if (!recipeApiUrl || !recipeApiKey) {
+    return response.status(503).json({ message: 'Recipe service is not configured.' });
+  }
+
+  const upstreamUrl = new URL(recipeApiUrl);
+  if (request.params.id) {
+    upstreamUrl.pathname = `${upstreamUrl.pathname.replace(/\/$/, '')}/${encodeURIComponent(request.params.id)}`;
+  }
+  if (request.query.search) upstreamUrl.searchParams.set('search', request.query.search);
+  upstreamUrl.searchParams.set('key', recipeApiKey);
+
+  try {
+    const upstreamResponse = await fetch(upstreamUrl, {
+      method: request.method,
+      headers: request.method === 'POST' ? { 'Content-Type': 'application/json' } : undefined,
+      body: request.method === 'POST' ? JSON.stringify(request.body) : undefined,
+      signal: AbortSignal.timeout(recipeApiTimeout),
+    });
+    const data = await upstreamResponse.json();
+
+    if (!upstreamResponse.ok) {
+      return response.status(upstreamResponse.status).json({
+        message: typeof data.message === 'string' ? data.message : 'Recipe service request failed.',
+      });
+    }
+
+    response.status(upstreamResponse.status).json(data);
+  } catch (error) {
+    const isTimeout = error.name === 'TimeoutError' || error.name === 'AbortError';
+    response.status(isTimeout ? 504 : 502).json({
+      message: isTimeout ? 'Recipe service request timed out.' : 'Recipe service is unavailable.',
+    });
+  }
+};
+
+app.get('/api/v1/recipes', (request, response) => {
+  if (typeof request.query.search !== 'string' || !request.query.search.trim() || request.query.search.length > 200) {
+    return response.status(400).json({ message: 'A search query between 1 and 200 characters is required.' });
+  }
+  proxyRecipeRequest(request, response);
+});
+
+app.get('/api/v1/recipes/:id', (request, response) => {
+  if (!request.params.id || request.params.id.length > 128) {
+    return response.status(400).json({ message: 'A valid recipe ID is required.' });
+  }
+  proxyRecipeRequest(request, response);
+});
+
+app.post('/api/v1/recipes', (request, response) => {
+  if (!request.body || typeof request.body !== 'object' || Array.isArray(request.body)) {
+    return response.status(400).json({ message: 'A recipe object is required.' });
+  }
+  proxyRecipeRequest(request, response);
 });
 
 app.get('/api/v1/health', async (_request, response) => {
